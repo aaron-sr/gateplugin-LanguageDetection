@@ -1,7 +1,10 @@
 package gate.languagedetection;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.optimaize.langdetect.DetectedLanguage;
 import com.optimaize.langdetect.LanguageDetector;
@@ -30,16 +33,16 @@ public class LanguageDetection extends AbstractLanguageAnalyser {
 
 	private static final long serialVersionUID = 4531104124991700665L;
 
-	private static final String DETECTEDLANGUAGE_SPLIT = ", ";
-	private static final String PROBABILITY_SPLIT = ":";
-
 	private List<String> languageFilter;
 
-	private String featureName;
 	private String inputASName;
 	private String inputAnnotation;
 
+	private String languageFeatureName;
+	private String probabilityFeatureName;
+
 	private Double threshold;
+	private Boolean onlyGreatestProbabilility;
 
 	private LanguageDetector detector;
 
@@ -93,25 +96,45 @@ public class LanguageDetection extends AbstractLanguageAnalyser {
 
 	private void detectLanguage(String text, FeatureMap featureMap) {
 		List<DetectedLanguage> probabilities = detector.getProbabilities(text);
-		for (DetectedLanguage detectedLanguage : probabilities) {
-			if (threshold == null || detectedLanguage.getProbability() >= threshold) {
-				appendLanguageToFeatureMap(featureMap, detectedLanguage.getLocale().getLanguage(),
-						detectedLanguage.getProbability());
+		if (onlyGreatestProbabilility) {
+			if (probabilities.size() > 0) {
+				DetectedLanguage detectedLanguage = probabilities.get(0);
+				if (threshold == null || detectedLanguage.getProbability() >= threshold) {
+					String language = detectedLanguage.getLocale().getLanguage();
+					double probability = detectedLanguage.getProbability();
+					featureMap.put(languageFeatureName, language);
+					featureMap.put(probabilityFeatureName, probability);
+				}
+			}
+		} else {
+			for (DetectedLanguage detectedLanguage : probabilities) {
+				if (threshold == null || detectedLanguage.getProbability() >= threshold) {
+					appendLanguageToFeatureMap(featureMap, detectedLanguage.getLocale().getLanguage(),
+							detectedLanguage.getProbability());
+				}
 			}
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	private void appendLanguageToFeatureMap(FeatureMap featureMap, String language, double probability) {
-		Object object = document.getFeatures().get(featureName);
-		if (object != null) {
-			featureMap.put(featureName, object.toString() + DETECTEDLANGUAGE_SPLIT + asString(language, probability));
+		List<String> languages = (List<String>) featureMap.get(languageFeatureName);
+		if (languages != null) {
+			languages.add(language);
 		} else {
-			featureMap.put(featureName, asString(language, probability));
+			languages = new ArrayList<>();
+			languages.add(language);
+			featureMap.put(languageFeatureName, languages);
 		}
-	}
 
-	private String asString(String language, double probability) {
-		return language + PROBABILITY_SPLIT + probability;
+		Map<String, Double> probabilities = (Map<String, Double>) featureMap.get(probabilityFeatureName);
+		if (probabilities != null) {
+			probabilities.put(language, probability);
+		} else {
+			probabilities = new LinkedHashMap<>();
+			probabilities.put(language, probability);
+			featureMap.put(probabilityFeatureName, probabilities);
+		}
 	}
 
 	private boolean isEmpty(String string) {
@@ -123,19 +146,30 @@ public class LanguageDetection extends AbstractLanguageAnalyser {
 	}
 
 	@Optional
-	@CreoleParameter(comment = "Only detect following languages")
+	@CreoleParameter(comment = "Only detect following languages (ISO639-1 codes, see built-in language profiles")
 	public void setLanguageFilter(List<String> languageFilter) {
 		this.languageFilter = languageFilter;
 	}
 
-	public String getFeatureName() {
-		return featureName;
+	public String getLanguageFeatureName() {
+		return languageFeatureName;
 	}
 
 	@RunTime
-	@CreoleParameter(comment = "Name of the feature to store detected language, document or annotation", defaultValue = "lang")
-	public void setFeatureName(String featureName) {
-		this.featureName = featureName;
+	@CreoleParameter(comment = "The feature of document or annotation to store detected language names (i.e. stored as list, sorted by probabilities)", defaultValue = "lang")
+	public void setLanguageFeatureName(String languageFeatureName) {
+		this.languageFeatureName = languageFeatureName;
+	}
+
+	public String getProbabilityFeatureName() {
+		return probabilityFeatureName;
+	}
+
+	@Optional
+	@RunTime
+	@CreoleParameter(comment = "The feature of document or annotation to store detected language probabilities (i.e. stored as map, key=language)", defaultValue = "lang_prob")
+	public void setProbabilityFeatureName(String probabilityFeatureName) {
+		this.probabilityFeatureName = probabilityFeatureName;
 	}
 
 	public String getInputASName() {
@@ -144,7 +178,7 @@ public class LanguageDetection extends AbstractLanguageAnalyser {
 
 	@Optional
 	@RunTime
-	@CreoleParameter(comment = "analyse specific annotation instead of whole document")
+	@CreoleParameter(comment = "analyse specific annotations instead of whole document")
 	public void setInputASName(String inputASName) {
 		this.inputASName = inputASName;
 	}
@@ -155,20 +189,31 @@ public class LanguageDetection extends AbstractLanguageAnalyser {
 
 	@Optional
 	@RunTime
-	@CreoleParameter(comment = "analyse specific annotation instead of whole document")
+	@CreoleParameter(comment = "analyse specific annotations instead of whole document")
 	public void setInputAnnotation(String inputAnnotation) {
 		this.inputAnnotation = inputAnnotation;
 	}
 
 	@Optional
 	@RunTime
-	@CreoleParameter(comment = "Only annotate languages with threshold")
+	@CreoleParameter(comment = "Only consider languages with probability above threshold")
 	public void setThreshold(Double threshold) {
 		this.threshold = threshold;
 	}
 
 	public Double getThreshold() {
 		return threshold;
+	}
+
+	public Boolean getOnlyGreatestProbabilility() {
+		return onlyGreatestProbabilility;
+	}
+
+	@Optional
+	@RunTime
+	@CreoleParameter(comment = "Only consider language with greatest probability, (i.e. languageFeatureName and probabilityFeatureName are stored as single value instead of list/map)", defaultValue = "true")
+	public void setOnlyGreatestProbabilility(Boolean onlyGreatestProbablility) {
+		this.onlyGreatestProbabilility = onlyGreatestProbablility;
 	}
 
 }
