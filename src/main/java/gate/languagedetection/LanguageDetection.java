@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.log4j.Logger;
+
 import com.optimaize.langdetect.DetectedLanguage;
 import com.optimaize.langdetect.LanguageDetector;
 import com.optimaize.langdetect.LanguageDetectorBuilder;
@@ -15,10 +17,16 @@ import com.optimaize.langdetect.profiles.LanguageProfileReader;
 
 import gate.Annotation;
 import gate.AnnotationSet;
+import gate.Factory;
+import gate.Factory.DuplicationContext;
 import gate.FeatureMap;
+import gate.Gate;
 import gate.Resource;
 import gate.creole.AbstractLanguageAnalyser;
+import gate.creole.AbstractResource;
+import gate.creole.CustomDuplication;
 import gate.creole.ExecutionException;
+import gate.creole.ResourceData;
 import gate.creole.ResourceInstantiationException;
 import gate.creole.metadata.CreoleParameter;
 import gate.creole.metadata.CreoleResource;
@@ -29,9 +37,9 @@ import gate.creole.metadata.RunTime;
  * This class is the implementation of the resource LanguageDetection.
  */
 @CreoleResource(name = "LanguageDetection", comment = "Integrate optimaize/language-detector (https://github.com/optimaize/language-detector) as a Processing Resource")
-public class LanguageDetection extends AbstractLanguageAnalyser {
-
+public class LanguageDetection extends AbstractLanguageAnalyser implements CustomDuplication {
 	private static final long serialVersionUID = 4531104124991700665L;
+	private static Logger logger = Logger.getLogger(LanguageDetection.class);
 
 	private List<String> languageFilter;
 
@@ -67,6 +75,23 @@ public class LanguageDetection extends AbstractLanguageAnalyser {
 	@Override
 	public void reInit() throws ResourceInstantiationException {
 		init();
+	}
+
+	@Override
+	public Resource duplicate(DuplicationContext ctx) throws ResourceInstantiationException {
+		ResourceData resourceData = Gate.getCreoleRegister().get(LanguageDetection.class.getCanonicalName());
+		LanguageDetection duplicate = new LanguageDetection();
+
+		duplicate.setName(resourceData.getName() + "_" + Gate.genSym());
+		AbstractResource.setParameterValues(duplicate, getInitParameterValues());
+		AbstractResource.setParameterValues(duplicate, getRuntimeParameterValues());
+		duplicate.setFeatures(Factory.newFeatureMap());
+		duplicate.getFeatures().putAll(getFeatures());
+
+		duplicate.detector = detector;
+
+		resourceData.addInstantiation(duplicate);
+		return duplicate;
 	}
 
 	@Override
