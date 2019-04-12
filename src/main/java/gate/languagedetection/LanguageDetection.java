@@ -73,11 +73,6 @@ public class LanguageDetection extends AbstractLanguageAnalyser implements Custo
 	}
 
 	@Override
-	public void reInit() throws ResourceInstantiationException {
-		init();
-	}
-
-	@Override
 	public Resource duplicate(DuplicationContext ctx) throws ResourceInstantiationException {
 		ResourceData resourceData = Gate.getCreoleRegister().get(LanguageDetection.class.getCanonicalName());
 		LanguageDetection duplicate = new LanguageDetection();
